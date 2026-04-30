@@ -1,0 +1,16 @@
+@import "tailwindcss";
+
+:root {
+  --brand-blue: #1877f2;
+  --brand-blue-dark: #0f5fcc;
+  --brand-indigo: #4f46e5;
+}
+
+body {
+  font-family: var(--font-geist), system-ui, sans-serif;
+}
+
+/* Garantit que les icônes Font Awesome s'affichent correctement */
+.fa, .fas, .far, .fab, .fa-solid, .fa-regular, .fa-brands {
+  font-display: block;
+}
