@@ -2,93 +2,93 @@
 
 import { useState } from "react";
 
-type Result = {
+type KeywordResult = {
   keyword: string;
-  volume: string;
-  cpc: string;
-  competition: "Faible" | "Moyenne" | "Élevée";
-  score: number;
-  trend: "up" | "down" | "stable";
+  searchVolumeExact: number | null;
+  searchVolumeBroad: number | null;
+  monthlyTrend: number | null;
+  quarterlyTrend: number | null;
+  easeOfRanking: number | null;
+  ppcBidExact: number | null;
+  organicProductCount: number | null;
+  avgSales: number | null;
+  avgReviews: number | null;
+  avgBsr: number | null;
 };
 
-const COMPETITION_COLOR: Record<string, string> = {
-  Faible: "bg-green-100 text-green-700",
-  Moyenne: "bg-yellow-100 text-yellow-700",
-  Élevée: "bg-red-100 text-red-700",
-};
+function fmt(n: number | null, opts?: Intl.NumberFormatOptions): string {
+  if (n === null || n === undefined) return "—";
+  return n.toLocaleString("fr-FR", opts);
+}
 
-const TREND_ICON: Record<string, string> = {
-  up: "fa-solid fa-arrow-trend-up text-green-500",
-  down: "fa-solid fa-arrow-trend-down text-red-500",
-  stable: "fa-solid fa-minus text-gray-400",
-};
+function TrendBadge({ value }: { value: number | null }) {
+  if (value === null) return <span className="text-gray-300">—</span>;
+  const positive = value >= 0;
+  return (
+    <span className={`inline-flex items-center gap-1 text-sm font-medium ${positive ? "text-green-600" : "text-red-500"}`}>
+      <i className={`fa-solid ${positive ? "fa-arrow-trend-up" : "fa-arrow-trend-down"} text-xs`} />
+      {positive ? "+" : ""}{value}%
+    </span>
+  );
+}
 
-// Données fictives pour démonstration
-function generateResults(query: string): Result[] {
-  const base = query.trim().toLowerCase();
-  const seeds = [
-    base,
-    `${base} pas cher`,
-    `meilleur ${base}`,
-    `${base} en ligne`,
-    `acheter ${base}`,
-    `${base} avis`,
-    `${base} 2024`,
-    `${base} comparatif`,
-  ];
-  return seeds.map((kw, i) => ({
-    keyword: kw,
-    volume: `${Math.floor(Math.random() * 90 + 10) * 1000}`,
-    cpc: `${(Math.random() * 3 + 0.2).toFixed(2)} €`,
-    competition: (["Faible", "Moyenne", "Élevée"] as const)[i % 3],
-    score: Math.floor(Math.random() * 40 + 60),
-    trend: (["up", "down", "stable"] as const)[i % 3],
-  }));
+function ScoreBar({ value }: { value: number | null }) {
+  if (value === null) return <span className="text-gray-300">—</span>;
+  const color = value >= 70 ? "bg-green-500" : value >= 40 ? "bg-yellow-400" : "bg-red-400";
+  return (
+    <div className="flex items-center gap-2">
+      <div className="w-16 h-2 bg-gray-200 rounded-full overflow-hidden">
+        <div className={`h-full ${color} rounded-full`} style={{ width: `${value}%` }} />
+      </div>
+      <span className="text-gray-700 font-semibold text-sm">{value}</span>
+    </div>
+  );
 }
 
 export default function SearchForm() {
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<Result[] | null>(null);
+  const [result, setResult] = useState<KeywordResult | null>(null);
   const [loading, setLoading] = useState(false);
-  const [filters, setFilters] = useState({ competition: "all", minScore: 0 });
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSearch = (e: React.FormEvent) => {
+  const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!query.trim()) return;
     setLoading(true);
-    setResults(null);
-    setTimeout(() => {
-      setResults(generateResults(query));
+    setResult(null);
+    setError(null);
+    try {
+      const res = await fetch(`/api/keywords?keyword=${encodeURIComponent(query.trim())}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Erreur API");
+      setResult(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erreur inconnue");
+    } finally {
       setLoading(false);
-    }, 1000);
+    }
   };
-
-  const filtered = results?.filter((r) => {
-    if (filters.competition !== "all" && r.competition !== filters.competition) return false;
-    if (r.score < filters.minScore) return false;
-    return true;
-  });
 
   return (
     <div className="space-y-8">
-      {/* Formulaire de recherche */}
+      {/* Formulaire */}
       <form onSubmit={handleSearch} className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
         <label className="block text-sm font-semibold text-gray-700 mb-2">
           <i className="fa-solid fa-magnifying-glass text-blue-500 mr-1.5" />
-          Mot-clé ou thématique
+          Mot-clé Amazon.fr
         </label>
         <div className="flex gap-3">
           <input
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Ex : chaussures running, formation Python, appartement Paris…"
+            placeholder="Ex : chaussures running, aspirateur sans fil, vélo électrique…"
             className="flex-1 border border-gray-300 rounded-xl px-4 py-3 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
           />
           <button
             type="submit"
             disabled={loading || !query.trim()}
-            className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold px-6 py-3 rounded-xl flex items-center gap-2 transition-colors min-w-[140px] justify-center"
+            className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold px-6 py-3 rounded-xl flex items-center gap-2 transition-colors min-w-[160px] justify-center"
           >
             {loading ? (
               <>
@@ -97,132 +97,181 @@ export default function SearchForm() {
               </>
             ) : (
               <>
-                <i className="fa-solid fa-magnifying-glass-chart" />
+                <i className="fa-brands fa-amazon" />
                 Analyser
               </>
             )}
           </button>
         </div>
-
-        {/* Filtres */}
-        <div className="mt-4 flex flex-wrap gap-4 pt-4 border-t border-gray-100">
-          <div className="flex items-center gap-2 text-sm">
-            <i className="fa-solid fa-filter text-gray-400" />
-            <span className="text-gray-600 font-medium">Filtres :</span>
-          </div>
-          <label className="flex items-center gap-2 text-sm text-gray-600">
-            Concurrence :
-            <select
-              value={filters.competition}
-              onChange={(e) => setFilters((f) => ({ ...f, competition: e.target.value }))}
-              className="border border-gray-200 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
-            >
-              <option value="all">Toutes</option>
-              <option value="Faible">Faible</option>
-              <option value="Moyenne">Moyenne</option>
-              <option value="Élevée">Élevée</option>
-            </select>
-          </label>
-          <label className="flex items-center gap-2 text-sm text-gray-600">
-            Score min :
-            <input
-              type="number"
-              min={0}
-              max={100}
-              value={filters.minScore}
-              onChange={(e) => setFilters((f) => ({ ...f, minScore: Number(e.target.value) }))}
-              className="border border-gray-200 rounded-lg px-2 py-1 w-16 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
-            />
-          </label>
-        </div>
+        <p className="mt-2 text-xs text-gray-400 flex items-center gap-1">
+          <i className="fa-solid fa-circle-info" />
+          Données issues de Jungle Scout — marketplace Amazon.fr
+        </p>
       </form>
 
-      {/* État de chargement */}
+      {/* Erreur */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-2xl p-5 flex items-start gap-3 text-red-700">
+          <i className="fa-solid fa-triangle-exclamation mt-0.5 shrink-0" />
+          <div>
+            <p className="font-semibold">Erreur Jungle Scout</p>
+            <p className="text-sm mt-0.5">{error}</p>
+            {error.includes("KEY_NAME") && (
+              <p className="text-sm mt-2 text-red-600">
+                Renseigne <code className="bg-red-100 px-1 rounded">JUNGLE_SCOUT_KEY_NAME</code> dans{" "}
+                <code className="bg-red-100 px-1 rounded">.env.local</code> avec le nom de ta clé API
+                (visible dans <strong>Settings › API</strong> de ton compte Jungle Scout).
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Chargement */}
       {loading && (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-12 flex flex-col items-center gap-4 text-gray-500">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-14 flex flex-col items-center gap-4 text-gray-500">
           <i className="fa-solid fa-spinner fa-spin text-blue-500 text-4xl" />
-          <p className="font-medium">Analyse des données en cours…</p>
-          <p className="text-sm text-gray-400">Nous interrogeons 2M+ de mots-clés Facebook Ads</p>
+          <p className="font-medium">Interrogation de Jungle Scout…</p>
+          <p className="text-sm text-gray-400">Volume de recherche · Ventes · Reviews · BSR</p>
         </div>
       )}
 
       {/* Résultats */}
-      {filtered && !loading && (
-        <div className="space-y-4">
+      {result && !loading && (
+        <div className="space-y-6">
+          {/* En-tête résultat */}
           <div className="flex items-center justify-between">
-            <h2 className="font-semibold text-gray-800 flex items-center gap-2">
-              <i className="fa-solid fa-list-check text-blue-500" />
-              {filtered.length} résultat{filtered.length !== 1 ? "s" : ""} pour{" "}
-              <span className="text-blue-600">&ldquo;{query}&rdquo;</span>
+            <h2 className="font-semibold text-gray-800 flex items-center gap-2 text-lg">
+              <i className="fa-brands fa-amazon text-orange-500" />
+              Résultats pour{" "}
+              <span className="text-blue-600">&ldquo;{result.keyword}&rdquo;</span>
+              <span className="text-sm font-normal text-gray-400 ml-1">— Amazon.fr</span>
             </h2>
-            <button className="text-sm text-blue-600 hover:underline flex items-center gap-1.5">
-              <i className="fa-solid fa-download" />
-              Exporter CSV
-            </button>
+            <span className="text-xs text-gray-400 flex items-center gap-1">
+              <i className="fa-solid fa-database text-gray-300" />
+              Jungle Scout
+            </span>
           </div>
 
-          {filtered.length === 0 ? (
-            <div className="bg-white rounded-2xl border border-gray-200 p-10 text-center text-gray-400">
-              <i className="fa-solid fa-circle-xmark text-4xl mb-3 block" />
-              Aucun résultat avec ces filtres.
+          {/* KPIs principaux — 4 cartes */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+              <div className="flex items-center gap-2 text-blue-600 mb-2">
+                <i className="fa-solid fa-magnifying-glass text-sm" />
+                <span className="text-xs font-semibold uppercase tracking-wide">Volume exact</span>
+              </div>
+              <p className="text-3xl font-extrabold text-gray-900">
+                {fmt(result.searchVolumeExact)}
+              </p>
+              <p className="text-xs text-gray-400 mt-1">recherches / mois</p>
             </div>
-          ) : (
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr>
-                    <th className="text-left px-5 py-3.5 text-gray-500 font-semibold">Mot-clé</th>
-                    <th className="text-right px-5 py-3.5 text-gray-500 font-semibold">Volume/mois</th>
-                    <th className="text-right px-5 py-3.5 text-gray-500 font-semibold">CPC moy.</th>
-                    <th className="text-center px-5 py-3.5 text-gray-500 font-semibold">Concurrence</th>
-                    <th className="text-center px-5 py-3.5 text-gray-500 font-semibold">Score</th>
-                    <th className="text-center px-5 py-3.5 text-gray-500 font-semibold">Tendance</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {filtered.map((r) => (
-                    <tr key={r.keyword} className="hover:bg-blue-50/30 transition-colors">
-                      <td className="px-5 py-4 font-medium text-gray-900">{r.keyword}</td>
-                      <td className="px-5 py-4 text-right text-gray-600">
-                        {Number(r.volume).toLocaleString("fr-FR")}
-                      </td>
-                      <td className="px-5 py-4 text-right text-gray-600">{r.cpc}</td>
-                      <td className="px-5 py-4 text-center">
-                        <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${COMPETITION_COLOR[r.competition]}`}>
-                          {r.competition}
-                        </span>
-                      </td>
-                      <td className="px-5 py-4 text-center">
-                        <div className="flex items-center justify-center gap-2">
-                          <div className="w-16 h-2 bg-gray-200 rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-blue-500 rounded-full"
-                              style={{ width: `${r.score}%` }}
-                            />
-                          </div>
-                          <span className="text-gray-700 font-semibold">{r.score}</span>
-                        </div>
-                      </td>
-                      <td className="px-5 py-4 text-center">
-                        <i className={TREND_ICON[r.trend]} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+              <div className="flex items-center gap-2 text-green-600 mb-2">
+                <i className="fa-solid fa-box text-sm" />
+                <span className="text-xs font-semibold uppercase tracking-wide">Ventes moy. p.1</span>
+              </div>
+              <p className="text-3xl font-extrabold text-gray-900">
+                {fmt(result.avgSales)}
+              </p>
+              <p className="text-xs text-gray-400 mt-1">unités vendues / mois</p>
             </div>
-          )}
+
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+              <div className="flex items-center gap-2 text-yellow-600 mb-2">
+                <i className="fa-solid fa-star text-sm" />
+                <span className="text-xs font-semibold uppercase tracking-wide">Reviews moy. p.1</span>
+              </div>
+              <p className="text-3xl font-extrabold text-gray-900">
+                {fmt(result.avgReviews)}
+              </p>
+              <p className="text-xs text-gray-400 mt-1">avis clients (moy.)</p>
+            </div>
+
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+              <div className="flex items-center gap-2 text-purple-600 mb-2">
+                <i className="fa-solid fa-ranking-star text-sm" />
+                <span className="text-xs font-semibold uppercase tracking-wide">BSR moy. p.1</span>
+              </div>
+              <p className="text-3xl font-extrabold text-gray-900">
+                {result.avgBsr !== null ? `#${fmt(result.avgBsr)}` : "—"}
+              </p>
+              <p className="text-xs text-gray-400 mt-1">Best Seller Rank</p>
+            </div>
+          </div>
+
+          {/* Métriques secondaires */}
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2 text-sm font-semibold text-gray-700">
+              <i className="fa-solid fa-chart-bar text-blue-400" />
+              Métriques complémentaires
+            </div>
+            <div className="divide-y divide-gray-50">
+              <Row
+                icon="fa-solid fa-magnifying-glass-plus"
+                label="Volume broad"
+                value={result.searchVolumeBroad !== null ? `${fmt(result.searchVolumeBroad)} / mois` : "—"}
+              />
+              <Row
+                icon="fa-solid fa-calendar-days"
+                label="Tendance mensuelle"
+                value={<TrendBadge value={result.monthlyTrend} />}
+              />
+              <Row
+                icon="fa-solid fa-calendar"
+                label="Tendance trimestrielle"
+                value={<TrendBadge value={result.quarterlyTrend} />}
+              />
+              <Row
+                icon="fa-solid fa-gauge-high"
+                label="Facilité de classement"
+                value={<ScoreBar value={result.easeOfRanking} />}
+              />
+              <Row
+                icon="fa-brands fa-amazon"
+                label="CPC Amazon (enchère exacte)"
+                value={result.ppcBidExact !== null ? `${result.ppcBidExact.toFixed(2)} €` : "—"}
+              />
+              <Row
+                icon="fa-solid fa-store"
+                label="Nb de produits organiques"
+                value={result.organicProductCount !== null ? fmt(result.organicProductCount) : "—"}
+              />
+            </div>
+          </div>
         </div>
       )}
 
-      {/* Placeholder vide */}
-      {!results && !loading && (
+      {/* État vide */}
+      {!result && !loading && !error && (
         <div className="bg-white rounded-2xl border border-dashed border-gray-300 p-16 text-center text-gray-400">
-          <i className="fa-solid fa-magnifying-glass-chart text-5xl mb-4 block text-gray-200" />
-          <p className="font-medium text-gray-500">Entrez un mot-clé pour démarrer votre analyse</p>
-          <p className="text-sm mt-1">Ex : chaussures sport, logiciel comptabilité, cours de yoga…</p>
+          <i className="fa-brands fa-amazon text-5xl mb-4 block text-gray-200" />
+          <p className="font-medium text-gray-500">Entrez un mot-clé pour interroger Jungle Scout</p>
+          <p className="text-sm mt-1">
+            Volume de recherche · Ventes estimées · Reviews · BSR — Amazon.fr
+          </p>
         </div>
       )}
+    </div>
+  );
+}
+
+function Row({
+  icon,
+  label,
+  value,
+}: {
+  icon: string;
+  label: string;
+  value: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center justify-between px-6 py-3.5">
+      <span className="flex items-center gap-2 text-sm text-gray-600">
+        <i className={`${icon} text-gray-400 w-4 text-center`} />
+        {label}
+      </span>
+      <span className="text-sm font-semibold text-gray-800">{value}</span>
     </div>
   );
 }
