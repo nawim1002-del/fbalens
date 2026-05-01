@@ -35,6 +35,11 @@ async function fetchKeywordData(keyword: string) {
   });
   if (!res.ok) {
     const text = await res.text();
+    if (res.status === 403 && text.includes("allowlist")) {
+      throw new Error(
+        "IP non autorisée : ajoute ton IP publique dans Jungle Scout › Settings › API › Allowed IPs, puis relance.",
+      );
+    }
     throw new Error(`Jungle Scout keywords [${res.status}]: ${text}`);
   }
   const json = await res.json();
@@ -70,6 +75,11 @@ async function fetchProductData(keyword: string) {
   });
   if (!res.ok) {
     const text = await res.text();
+    if (res.status === 403 && text.includes("allowlist")) {
+      throw new Error(
+        "IP non autorisée : ajoute ton IP publique dans Jungle Scout › Settings › API › Allowed IPs, puis relance.",
+      );
+    }
     throw new Error(`Jungle Scout products [${res.status}]: ${text}`);
   }
   const json = await res.json();
