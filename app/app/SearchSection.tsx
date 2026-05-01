@@ -146,8 +146,15 @@ export default function SearchSection() {
       });
       if (res.ok) {
         const claudeResults: ClaudeIntent[] = await res.json();
-        const byKeyword = Object.fromEntries(claudeResults.map((c) => [c.keyword, c]));
-        setRows(baseRows.map((r) => ({ ...r, claudeIntent: byKeyword[r.keyword] })));
+        console.log("[intent] Claude returned:", claudeResults);
+        const normalize = (s: string) => s.toLowerCase().trim().replace(/['']/g, "'");
+        const byKeyword = Object.fromEntries(claudeResults.map((c) => [normalize(c.keyword), c]));
+        const enriched = baseRows.map((r) => ({ ...r, claudeIntent: byKeyword[normalize(r.keyword)] }));
+        console.log("[intent] enriched rows sample:", enriched.slice(0, 2).map((r) => ({ kw: r.keyword, claudeIntent: r.claudeIntent })));
+        setRows(enriched);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        console.error("[intent] API error:", res.status, err);
       }
     } catch {
       // keep mock intent scores on error
