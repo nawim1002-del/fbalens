@@ -48,11 +48,20 @@ Format de réponse — tableau JSON :
   });
 
   const raw = response.content[0].type === "text" ? response.content[0].text : "";
-  const jsonMatch = raw.match(/\[[\s\S]*\]/);
+
+  // Strip markdown code fences if present (```json ... ``` or ``` ... ```)
+  const stripped = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
+
+  // Extract the JSON array (first [ ... ] block)
+  const jsonMatch = stripped.match(/\[[\s\S]*\]/);
 
   if (!jsonMatch) {
     return NextResponse.json({ error: "invalid response", raw }, { status: 500 });
   }
 
-  return NextResponse.json(JSON.parse(jsonMatch[0]));
+  try {
+    return NextResponse.json(JSON.parse(jsonMatch[0]));
+  } catch {
+    return NextResponse.json({ error: "json parse failed", raw }, { status: 500 });
+  }
 }
