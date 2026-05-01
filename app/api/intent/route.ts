@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 export async function POST(req: NextRequest) {
+  try {
   const { keywords } = await req.json() as { keywords: string[] };
 
   if (!Array.isArray(keywords) || keywords.length === 0) {
@@ -70,5 +71,9 @@ Format de réponse — tableau JSON :
     return NextResponse.json(results);
   } catch (err) {
     return NextResponse.json({ error: "json parse failed", raw, cleaned }, { status: 500 });
+  }
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
