@@ -24,34 +24,46 @@ const TREND_ICON: Record<string, string> = {
 type ClaudeIntent = {
   keyword: string;
   score: 0 | 10 | 15 | 25;
-  reason: string;
+  verdict: "Net" | "Ambigu";
+  raisonnement: string;
+  produit_identifie: string;
 };
 
 type EnrichedRow = KeywordRow & { claudeIntent?: ClaudeIntent };
 
+function intentStyle(score: number) {
+  if (score === 25) return { color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/30", icon: "★" };
+  if (score === 15) return { color: "text-green-400",   bg: "bg-green-500/10 border-green-500/30",   icon: "▲" };
+  if (score === 10) return { color: "text-yellow-400",  bg: "bg-yellow-500/10 border-yellow-500/30", icon: "◆" };
+  return                   { color: "text-red-400",     bg: "bg-red-500/10 border-red-500/30",       icon: "▼" };
+}
+
 function IntentBadge({ row }: { row: EnrichedRow }) {
   const ci = row.claudeIntent;
   if (ci) {
-    const score = ci.score;
-    const color =
-      score === 25 ? "text-emerald-400" :
-      score === 15 ? "text-green-400" :
-      score === 10 ? "text-yellow-400" :
-      "text-red-400";
-    const bg =
-      score === 25 ? "bg-emerald-500/10 border-emerald-500/30" :
-      score === 15 ? "bg-green-500/10 border-green-500/30" :
-      score === 10 ? "bg-yellow-500/10 border-yellow-500/30" :
-      "bg-red-500/10 border-red-500/30";
-    const icon = score === 25 ? "★" : score === 15 ? "▲" : score === 10 ? "◆" : "▼";
+    const { color, bg, icon } = intentStyle(ci.score);
     return (
-      <div className="flex flex-col items-center gap-0.5">
-        <div className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-xs font-semibold ${bg}`}>
-          <span className={`text-base leading-none ${color}`}>{icon}</span>
-          <span className={color}>{score}/25</span>
+      <div className="flex flex-col items-center gap-1 min-w-[130px]">
+        <div className="flex items-center gap-1.5">
+          <div className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-xs font-semibold ${bg}`}>
+            <span className={`text-base leading-none ${color}`}>{icon}</span>
+            <span className={color}>{ci.score}/25</span>
+          </div>
+          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+            ci.verdict === "Net"
+              ? "bg-emerald-500/15 text-emerald-400"
+              : "bg-orange-500/15 text-orange-400"
+          }`}>
+            {ci.verdict}
+          </span>
         </div>
-        <span className="text-[10px] text-gray-500 max-w-[120px] text-center leading-tight hidden lg:block">
-          {ci.reason}
+        {ci.produit_identifie && (
+          <span className="text-[10px] text-blue-400/80 font-medium leading-tight text-center max-w-[160px] truncate hidden lg:block">
+            {ci.produit_identifie}
+          </span>
+        )}
+        <span className="text-[10px] text-gray-500 leading-tight text-center max-w-[160px] hidden xl:block">
+          {ci.raisonnement}
         </span>
       </div>
     );
