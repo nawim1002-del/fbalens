@@ -21,7 +21,42 @@ const TREND_ICON: Record<string, string> = {
   stable: "fa-solid fa-minus            text-gray-500",
 };
 
-function IntentBadge({ row }: { row: KeywordRow }) {
+type ClaudeIntent = {
+  keyword: string;
+  score: 0 | 10 | 15 | 25;
+  reason: string;
+};
+
+type EnrichedRow = KeywordRow & { claudeIntent?: ClaudeIntent };
+
+function IntentBadge({ row }: { row: EnrichedRow }) {
+  const ci = row.claudeIntent;
+  if (ci) {
+    const score = ci.score;
+    const color =
+      score === 25 ? "text-emerald-400" :
+      score === 15 ? "text-green-400" :
+      score === 10 ? "text-yellow-400" :
+      "text-red-400";
+    const bg =
+      score === 25 ? "bg-emerald-500/10 border-emerald-500/30" :
+      score === 15 ? "bg-green-500/10 border-green-500/30" :
+      score === 10 ? "bg-yellow-500/10 border-yellow-500/30" :
+      "bg-red-500/10 border-red-500/30";
+    const icon = score === 25 ? "★" : score === 15 ? "▲" : score === 10 ? "◆" : "▼";
+    return (
+      <div className="flex flex-col items-center gap-0.5">
+        <div className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-xs font-semibold ${bg}`}>
+          <span className={`text-base leading-none ${color}`}>{icon}</span>
+          <span className={color}>{score}/25</span>
+        </div>
+        <span className="text-[10px] text-gray-500 max-w-[120px] text-center leading-tight hidden lg:block">
+          {ci.reason}
+        </span>
+      </div>
+    );
+  }
+
   const { score, label, color, bgColor } = row.intent;
   return (
     <div className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-xs font-semibold ${bgColor}`}>
@@ -52,35 +87,61 @@ const DEFAULT_FILTERS: Filters = {
   hideOffTarget: false,
 };
 
-function isOnTarget(row: KeywordRow, f: Filters): boolean {
+function effectiveIntentScore(row: EnrichedRow): number {
+  return row.claudeIntent !== undefined ? row.claudeIntent.score : row.intent.score;
+}
+
+function isOnTarget(row: EnrichedRow, f: Filters): boolean {
   return (
     row.volume >= f.minVolume &&
     row.avgReviews <= f.maxReviews &&
     row.avgBsr <= f.maxBsr &&
-    row.intent.score >= f.minIntent
+    effectiveIntentScore(row) >= f.minIntent
   );
 }
 
 // ── main component ────────────────────────────────────────────────────────────
 
 export default function SearchSection() {
-  const [query, setQuery]       = useState("");
-  const [submitted, setSubmitted] = useState("");
-  const [loading, setLoading]   = useState(false);
-  const [rows, setRows]         = useState<KeywordRow[]>([]);
-  const [filters, setFilters]   = useState<Filters>(DEFAULT_FILTERS);
+  const [query, setQuery]             = useState("");
+  const [submitted, setSubmitted]     = useState("");
+  const [loading, setLoading]         = useState(false);
+  const [rows, setRows]               = useState<EnrichedRow[]>([]);
+  const [filters, setFilters]         = useState<Filters>(DEFAULT_FILTERS);
   const [showFilters, setShowFilters] = useState(false);
+  const [intentLoading, setIntentLoading] = useState(false);
 
-  const handleSearch = (e: React.FormEvent) => {
+  const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!query.trim()) return;
     setLoading(true);
     setRows([]);
     setSubmitted(query.trim());
-    setTimeout(() => {
-      setRows(generateKeywords(query.trim()));
-      setLoading(false);
-    }, 700);
+
+    const baseRows: EnrichedRow[] = await new Promise((resolve) =>
+      setTimeout(() => resolve(generateKeywords(query.trim())), 700)
+    );
+    setRows(baseRows);
+    setLoading(false);
+
+    // Call Claude for intent scoring
+    setIntentLoading(true);
+    try {
+      const res = await fetch("/api/intent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ keywords: baseRows.map((r) => r.keyword) }),
+      });
+      if (res.ok) {
+        const claudeResults: ClaudeIntent[] = await res.json();
+        const byKeyword = Object.fromEntries(claudeResults.map((c) => [c.keyword, c]));
+        setRows(baseRows.map((r) => ({ ...r, claudeIntent: byKeyword[r.keyword] })));
+      }
+    } catch {
+      // keep mock intent scores on error
+    } finally {
+      setIntentLoading(false);
+    }
   };
 
   const processed = useMemo(() => {
@@ -215,10 +276,18 @@ export default function SearchSection() {
               )}
               <span className="text-gray-600 text-xs ml-1">pour «{submitted}»</span>
             </div>
-            <button className="text-xs text-gray-500 hover:text-gray-300 flex items-center gap-1.5 transition-colors">
-              <i className="fa-solid fa-download" />
-              Exporter CSV
-            </button>
+            <div className="flex items-center gap-3">
+              {intentLoading && (
+                <span className="flex items-center gap-1.5 text-xs text-blue-400">
+                  <i className="fa-solid fa-spinner fa-spin" />
+                  Analyse Claude en cours…
+                </span>
+              )}
+              <button className="text-xs text-gray-500 hover:text-gray-300 flex items-center gap-1.5 transition-colors">
+                <i className="fa-solid fa-download" />
+                Exporter CSV
+              </button>
+            </div>
           </div>
 
           <div className="overflow-x-auto">
@@ -229,7 +298,10 @@ export default function SearchSection() {
                   <Th align="right">Volume/mois</Th>
                   <Th align="right">CPC moy.</Th>
                   <Th align="center">Concurrence</Th>
-                  <Th align="center">Intention achat</Th>
+                  <Th align="center">
+                    Intention achat
+                    {intentLoading && <i className="fa-solid fa-spinner fa-spin ml-1.5 text-blue-400 text-[10px]" />}
+                  </Th>
                   <Th align="right">Reviews p.1</Th>
                   <Th align="right">BSR p.1</Th>
                   <Th align="center">Tendance</Th>
